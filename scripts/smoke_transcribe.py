@@ -36,7 +36,7 @@ def main() -> None:
     duration = audio_duration_seconds(audio_path)
     transcriber = MuScriptorTranscriber()
     started = time.perf_counter()
-    midi_bytes = transcriber.transcribe(audio_path)
+    midi_bytes = transcriber.transcribe_to_midi(audio_path)
     inference_seconds = time.perf_counter() - started
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
