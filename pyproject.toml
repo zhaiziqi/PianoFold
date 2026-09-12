@@ -1,0 +1,33 @@
+[project]
+name = "pianofold"
+version = "0.1.0"
+description = "Local AI piano arranger"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "python-multipart",
+  "pydantic",
+  "mido",
+  "pretty_midi",
+  "music21",
+  "librosa",
+  "numpy",
+  "scipy",
+  "MuScriptor",
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "model: marks tests that load a transcription model",
+]
