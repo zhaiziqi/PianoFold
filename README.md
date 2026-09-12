@@ -26,18 +26,24 @@ starting point):
 uv run python scripts/smoke_transcribe.py /absolute/path/song.wav
 ```
 
-It uses only MuScriptor-small on `mps` with `float16`, writes
-`data/smoke/transcription.mid`, and prints duration, inference time, and RTF.
-It intentionally fails when MPS is unavailable rather than falling back to
-CPU.
+It uses only MuScriptor-small on `mps` with `float16`, writing both
+`data/smoke/transcription.mid` and the direct-event-derived
+`data/smoke/score_ir.json`. It prints duration plus a transcription-call total
+and RTF; those measures may include lazy model loading, so they are not
+presented as pure inference timing. It intentionally fails when MPS is
+unavailable rather than falling back to CPU.
 
 ## Baseline piano arrangement
 
-After transcription writes a `score_ir.json`, create the deterministic
-two-hand baseline MIDI with:
+Inspect the transcription score, then create the deterministic two-hand
+baseline MIDI with:
 
 ```bash
-uv run python scripts/smoke_arrange.py /absolute/path/score_ir.json /absolute/path/baseline.mid --bpm 120
+uv run python scripts/inspect_score.py data/smoke/score_ir.json
+```
+
+```bash
+uv run python scripts/smoke_arrange.py data/smoke/score_ir.json data/smoke/baseline.mid --bpm 120
 ```
 
 The command quantizes the score, omits `drum`/`drums` instruments, and writes

@@ -2,6 +2,7 @@
 
 from collections import defaultdict, deque
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from pianofold.symbolic.models import Note, ScoreIR
@@ -22,6 +23,14 @@ class MuScriptorMPSUnavailableError(RuntimeError):
 
 class TranscriptionParseError(ValueError):
     """MuScriptor emitted an incomplete or inconsistent note-event stream."""
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptionOutput:
+    """Raw provider MIDI and its direct provider-neutral score conversion."""
+
+    midi_bytes: bytes
+    score: ScoreIR
 
 
 def events_to_score_ir(events: Iterable[object]) -> ScoreIR:
@@ -100,8 +109,8 @@ class MuScriptorTranscriber:
     device = "mps"
     dtype = "float16"
 
-    def __init__(self) -> None:
-        self._model = None
+    def __init__(self, model: object | None = None) -> None:
+        self._model = model
 
     def transcribe(self, audio_path: Path) -> ScoreIR:
         """Transcribe ``audio_path`` directly into provider-neutral ScoreIR."""
@@ -114,6 +123,18 @@ class MuScriptorTranscriber:
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio input does not exist: {audio_path}")
         return self._load_model().transcribe_to_midi(audio_path)
+
+    def transcribe_with_midi(self, audio_path: Path) -> TranscriptionOutput:
+        """Perform one event-stream transcription and serialize both outputs."""
+        if not audio_path.is_file():
+            raise FileNotFoundError(f"Audio input does not exist: {audio_path}")
+        model = self._load_model()
+        beat_grid = model.detect_beat_grid_for(audio_path, "best-effort")
+        events = list(model.transcribe(audio_path))
+        return TranscriptionOutput(
+            midi_bytes=model.events_to_midi_bytes(iter(events), beat_grid=beat_grid),
+            score=events_to_score_ir(events),
+        )
 
     def _load_model(self):
         if self._model is not None:

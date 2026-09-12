@@ -77,6 +77,23 @@ def test_export_requires_an_existing_parent_directory(tmp_path: Path) -> None:
         arrangement_to_midi(PianoArrangement((), "baseline"), output)
 
 
+def test_export_lengthens_a_valid_sub_tick_note_to_one_tick(tmp_path: Path) -> None:
+    """Independent tick rounding must not place a note-off before its note-on."""
+    output = tmp_path / "sub-tick.mid"
+
+    arrangement_to_midi(
+        PianoArrangement((PianoNote(60, 0.0004, 0.0005, "right", ("tiny",)),), "baseline"),
+        output,
+        bpm=120,
+    )
+
+    messages = _absolute_messages(mido.MidiFile(output).tracks[1])
+    assert [(tick, message.type, message.note) for tick, message in messages] == [
+        (0, "note_on", 60),
+        (1, "note_off", 60),
+    ]
+
+
 def test_smoke_arrange_loads_quantizes_reduces_and_exports(tmp_path: Path) -> None:
     """Removing any smoke-command stage prevents a persisted score becoming MIDI."""
     score_path = tmp_path / "score_ir.json"

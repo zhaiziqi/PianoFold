@@ -13,15 +13,42 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pianofold.transcription.muscriptor import MuScriptorTranscriber
+from pianofold.symbolic.serialize import write_score
 
 
-OUTPUT_PATH = Path("data/smoke/transcription.mid")
+OUTPUT_DIR = Path("data/smoke")
 
 
 def audio_duration_seconds(audio_path: Path) -> float:
     """Return duration from audio metadata without loading a transcription model."""
     info = soundfile.info(audio_path)
     return info.frames / info.samplerate
+
+
+def run(
+    audio_path: Path,
+    transcriber: object,
+    output_dir: Path,
+    *,
+    duration_seconds: float,
+) -> tuple[Path, Path]:
+    """Persist both products of one transcription call for the next stages."""
+    started = time.perf_counter()
+    output = transcriber.transcribe_with_midi(audio_path)
+    transcription_seconds = time.perf_counter() - started
+    output_dir.mkdir(parents=True, exist_ok=True)
+    midi_path = output_dir / "transcription.mid"
+    score_path = output_dir / "score_ir.json"
+    midi_path.write_bytes(output.midi_bytes)
+    write_score(score_path, output.score)
+    print(f"Device: {transcriber.device}")
+    print(f"Model: {transcriber.MODEL_SIZE}")
+    print(f"Audio duration: {duration_seconds:.2f} seconds")
+    print(f"Transcription call total (may include model loading): {transcription_seconds:.2f} seconds")
+    print(f"Transcription call RTF: {transcription_seconds / duration_seconds:.3f}")
+    print(f"Raw MIDI output: {midi_path}")
+    print(f"ScoreIR output: {score_path}")
+    return midi_path, score_path
 
 
 def main() -> None:
@@ -34,19 +61,7 @@ def main() -> None:
         parser.error(f"Audio input does not exist: {audio_path}")
 
     duration = audio_duration_seconds(audio_path)
-    transcriber = MuScriptorTranscriber()
-    started = time.perf_counter()
-    midi_bytes = transcriber.transcribe_to_midi(audio_path)
-    inference_seconds = time.perf_counter() - started
-
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_bytes(midi_bytes)
-    print(f"Device: {transcriber.device}")
-    print(f"Model: {transcriber.MODEL_SIZE}")
-    print(f"Audio duration: {duration:.2f} seconds")
-    print(f"Inference: {inference_seconds:.2f} seconds")
-    print(f"RTF: {inference_seconds / duration:.3f}")
-    print(f"Output: {OUTPUT_PATH}")
+    run(audio_path, MuScriptorTranscriber(), OUTPUT_DIR, duration_seconds=duration)
 
 
 if __name__ == "__main__":

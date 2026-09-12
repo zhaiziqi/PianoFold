@@ -35,8 +35,10 @@ def _hand_track(name: str, notes: object, bpm: float) -> mido.MidiTrack:
     track.append(mido.Message("program_change", program=0, time=0))
     events = []
     for note in notes:  # type: ignore[union-attr]
-        events.append((_seconds_to_ticks(note.start, bpm), 1, note.pitch, 80))
-        events.append((_seconds_to_ticks(note.end, bpm), 0, note.pitch, 0))
+        start_tick = _seconds_to_ticks(note.start, bpm)
+        end_tick = max(_seconds_to_ticks(note.end, bpm), start_tick + 1)
+        events.append((start_tick, 1, note.pitch, 80))
+        events.append((end_tick, 0, note.pitch, 0))
     previous_tick = 0
     for tick, event_kind, pitch, velocity in sorted(events, key=lambda event: (event[0], event[1], event[2])):
         message_type = "note_off" if event_kind == 0 else "note_on"
