@@ -30,3 +30,15 @@ It uses only MuScriptor-small on `mps` with `float16`, writes
 `data/smoke/transcription.mid`, and prints duration, inference time, and RTF.
 It intentionally fails when MPS is unavailable rather than falling back to
 CPU.
+
+## Baseline piano arrangement
+
+After transcription writes a `score_ir.json`, create the deterministic
+two-hand baseline MIDI with:
+
+```bash
+uv run python scripts/smoke_arrange.py /absolute/path/score_ir.json /absolute/path/baseline.mid --bpm 120
+```
+
+The command quantizes the score, omits `drum`/`drums` instruments, and writes
+a type-1 MIDI with `Right Hand` and `Left Hand` General MIDI piano tracks.
