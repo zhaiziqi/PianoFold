@@ -31,10 +31,15 @@ def test_supports_the_three_grid_subdivisions(subdivision: int, expected_step: f
     assert result.notes[0].end - result.notes[0].start >= expected_step
 
 
-@pytest.mark.parametrize("bpm", [0, -1, math.inf, math.nan])
+@pytest.mark.parametrize("bpm", [0, -1, math.inf, math.nan, True, False])
 def test_rejects_invalid_bpm(bpm: float) -> None:
     with pytest.raises(ValueError, match="bpm"):
         quantize_score(ScoreIR(), bpm)
+
+
+def test_rejects_bpm_with_unrepresentable_float_grid_step() -> None:
+    with pytest.raises(ValueError, match="step"):
+        quantize_score(ScoreIR(), 5e-324)
 
 
 @pytest.mark.parametrize("subdivision", [0, 3, 8, 1.5, math.nan])
@@ -59,6 +64,19 @@ def test_preserves_overlaps_attributes_and_tempo_changes() -> None:
     assert result.notes[0].id == "a"
     assert result.notes[0].velocity == 44
     assert result.notes[0].instrument == "piano"
+    assert result.notes[0].end > result.notes[1].start
+
+
+def test_preserves_an_original_overlap_that_would_snap_to_touching() -> None:
+    score = ScoreIR(
+        notes=(
+            Note("a", 60, 0.0, 0.18, "piano"),
+            Note("b", 64, 0.12, 0.30, "piano"),
+        )
+    )
+
+    result = quantize_score(score, 120, 4)
+
     assert result.notes[0].end > result.notes[1].start
 
 

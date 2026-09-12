@@ -61,3 +61,28 @@ Result: `37 passed, 2 warnings` (the warnings are existing Starlette/httpx and a
 
 - Tempo changes remain at their original times by design; this task requires preserving them but does not define quantizing tempo anchors.
 - Decimal conversion is based on `str()` representations of input floats, which is deterministic and avoids binary floating-point drift; extremely unusual BPM values may still produce large decimal outputs, though the local precision is ample for normal score timings.
+
+## Review follow-up
+
+Added regression coverage for the reviewer findings:
+
+- Boolean BPM values are now rejected explicitly as invalid BPM inputs.
+- A finite but extremely small BPM such as `5e-324` is rejected before note construction when its Decimal grid step converts to a non-finite float.
+
+TDD evidence for the follow-up:
+
+```text
+uv run pytest tests/symbolic/test_quantize.py -q
+```
+
+The newly added tests first produced 2 failures (boolean `True` raised a Decimal conversion error, and `5e-324` did not raise), while the remaining 17 tests passed. After the minimal validation fix and overlap correction, the focused suite reports `20 passed`.
+
+The overlap observation is a real relationship issue: independent nearest snapping can turn original intervals `0.00–0.18` and `0.12–0.30` into touching intervals `0.00–0.125` and `0.125–0.25`. The smallest deterministic correction is to extend the earlier quantized note to the later quantized start plus one grid step whenever the original pair strictly overlapped but the snapped pair does not. This keeps all boundaries on-grid while preserving the intended overlap.
+
+Final verification:
+
+```text
+uv run pytest -q
+```
+
+Result: `41 passed, 2 warnings` (same pre-existing deprecation warnings).
