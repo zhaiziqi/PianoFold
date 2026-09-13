@@ -7,7 +7,6 @@ from pianofold.arrangement.candidates import Voicing
 from pianofold.arrangement.profiles import DifficultyProfile
 
 _LEAP_FREE_SEMITONES = 7.0
-_VOICE_LEADING_WEIGHT = 0.1
 
 
 def voicing_cost(previous: Voicing | None, current: Voicing, profile: DifficultyProfile) -> float:
@@ -24,7 +23,7 @@ def voicing_cost(previous: Voicing | None, current: Voicing, profile: Difficulty
             if before and after:
                 movement = abs(_center(after) - _center(before))
                 components.append(_weighted(max(0.0, movement - _LEAP_FREE_SEMITONES), profile.leap_weight))
-                components.append(_weighted(movement, profile.leap_weight * _VOICE_LEADING_WEIGHT))
+                components.append(_weighted(movement, profile.leap_weight))
     return _finite_sum(components)
 
 

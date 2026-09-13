@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from pianofold.arrangement.candidates import Voicing, generate_voicing_candidates
-from pianofold.arrangement.profiles import DifficultyProfile, RICH
+from pianofold.arrangement.profiles import DifficultyProfile, RICH, SIMPLE
 from pianofold.symbolic.models import Note
 
 
@@ -124,3 +124,21 @@ def test_candidate_ordering_is_repeatable() -> None:
 
     assert first == generate_voicing_candidates(notes, salience, RICH)
     assert first == sorted(first, key=lambda candidate: (candidate.left, candidate.right, candidate.source_note_ids))
+
+
+def test_dense_slice_offers_simple_subsets_with_both_outer_anchors() -> None:
+    """Assigning every retained note makes dense music impossible under Simple's limits."""
+    notes = tuple(Note(str(pitch), pitch, 0.0, 0.4, "piano") for pitch in (48, 55, 60, 64, 67, 72))
+    candidates = generate_voicing_candidates(notes, {note.id: 0.5 for note in notes}, SIMPLE)
+    assert candidates
+    assert len(candidates) <= 32
+    assert all(48 in c.left and 72 in c.right for c in candidates)
+    assert all(len(c.left) <= 2 and len(c.right) <= 2 for c in candidates)
+    assert {len(c.source_note_ids) for c in candidates} >= {2, 3, 4}
+
+
+def test_incompatible_outer_anchors_still_offer_nonempty_playable_subsets() -> None:
+    """Two wide low notes cannot share a hand but must not erase an entire onset."""
+    notes = (Note("low", 21, 0.0, 0.4, "piano"), Note("high", 54, 0.0, 0.4, "piano"))
+    candidates = generate_voicing_candidates(notes, {"low": 0.5, "high": 0.7}, SIMPLE)
+    assert {c.source_note_ids for c in candidates} == {("low",), ("high",)}
