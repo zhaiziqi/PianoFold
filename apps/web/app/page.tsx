@@ -5,6 +5,9 @@ import { DifficultySelector } from "../components/difficulty-selector";
 import { DownloadActions } from "../components/download-actions";
 import { ProcessingStatus } from "../components/processing-status";
 import { UploadDropzone } from "../components/upload-dropzone";
+import { ScoreViewer } from "../components/score-viewer";
+import { AudioPlayer } from "../components/audio-player";
+import { MidiPlayer } from "../components/midi-player";
 import { getProject, uploadProject } from "../lib/api";
 import type { Difficulty, ProjectMetadata } from "../lib/project";
 
@@ -102,6 +105,11 @@ export default function Home() {
           <div className="section-heading"><h2 id="arrangement-heading">Your piano arrangement</h2><span className="ready-label">Ready to play</span></div>
           <DifficultySelector value={difficulty} onChange={setDifficulty} />
           <DownloadActions projectId={project.project_id} difficulty={difficulty} />
+          <ScoreViewer projectId={project.project_id} difficulty={difficulty} />
+          <div className="mt-8 grid gap-8 border-t border-[var(--rule)] pt-6 sm:grid-cols-2">
+            <AudioPlayer projectId={project.project_id} />
+            <MidiPlayer projectId={project.project_id} difficulty={difficulty} />
+          </div>
         </section>
       )}
 

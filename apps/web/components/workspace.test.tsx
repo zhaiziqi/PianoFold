@@ -11,6 +11,12 @@ vi.mock("../lib/api", async (importOriginal) => ({
   uploadProject: vi.fn(),
   getProject: vi.fn(),
 }));
+// Keep the integrated score component real, replacing only its browser renderer and HTTP boundary.
+vi.mock("opensheetmusicdisplay", () => ({ OpenSheetMusicDisplay: class {
+  async load() {}
+  render() {}
+  clear() {}
+} }));
 
 const PROJECT_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ID = "22222222-2222-4222-8222-222222222222";
@@ -34,10 +40,11 @@ async function tick(ms = 1000) {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "<score-partwise/>" }));
   vi.mocked(uploadProject).mockReset().mockResolvedValue({ project_id: PROJECT_ID, status: "processing" });
   vi.mocked(getProject).mockReset().mockResolvedValue(metadata());
 });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("local workspace", () => {
   it("starts ready with an accessible supported-format file picker", () => {
@@ -114,7 +121,7 @@ describe("local workspace", () => {
     await user.tab();
     expect(screen.getByLabelText(/choose a song/i)).toHaveFocus();
     await user.upload(screen.getByLabelText(/choose a song/i), wav);
-    screen.getByRole("radio", { name: /standard/i }).focus();
+    (await screen.findByRole("radio", { name: /standard/i })).focus();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("radio", { name: /rich/i })).toBeChecked();
     expect(screen.getByRole("radio", { name: /rich/i })).toHaveFocus();
