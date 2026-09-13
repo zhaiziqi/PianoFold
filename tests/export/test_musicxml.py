@@ -1,8 +1,11 @@
 """Integration tests for deterministic two-hand MusicXML export."""
 
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
-from music21 import clef, converter
+from music21 import clef, converter, tempo
+from music21.musicxml import m21ToXml
 import pytest
 
 from pianofold.export.musicxml import arrangement_to_musicxml
@@ -65,3 +68,36 @@ def test_musicxml_export_is_byte_deterministic_across_repeated_exports(tmp_path:
     arrangement_to_musicxml(arrangement, second)
 
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_musicxml_export_is_byte_deterministic_across_encoding_dates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A generated encoding date must not make identical exports differ across days."""
+    arrangement = PianoArrangement((PianoNote(60, 0.0, 1.0, "right", ("melody",)),), "standard")
+    first = tmp_path / "first.musicxml"
+    second = tmp_path / "second.musicxml"
+
+    monkeypatch.setattr(
+        m21ToXml, "datetime", SimpleNamespace(date=SimpleNamespace(today=lambda: date(2026, 1, 1)))
+    )
+    arrangement_to_musicxml(arrangement, first)
+    monkeypatch.setattr(
+        m21ToXml, "datetime", SimpleNamespace(date=SimpleNamespace(today=lambda: date(2026, 1, 2)))
+    )
+    arrangement_to_musicxml(arrangement, second)
+
+    assert first.read_bytes() == second.read_bytes()
+
+
+def test_musicxml_export_emits_the_requested_tempo(tmp_path: Path) -> None:
+    """A score-level tempo alone would be omitted from the serialized piano staff."""
+    output = tmp_path / "ninety.musicxml"
+
+    arrangement_to_musicxml(
+        PianoArrangement((PianoNote(60, 0.0, 1.0, "right", ("melody",)),), "standard"), output, bpm=90
+    )
+
+    assert "<per-minute>90</per-minute>" in output.read_text(encoding="utf-8")
+    parsed = converter.parse(output)
+    assert [mark.number for mark in parsed.recurse().getElementsByClass(tempo.MetronomeMark)] == [90]

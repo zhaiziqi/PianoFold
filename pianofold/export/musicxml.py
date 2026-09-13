@@ -4,6 +4,7 @@ from math import isfinite
 from pathlib import Path
 
 from music21 import clef, instrument, layout, note, stream, tempo
+from music21.musicxml import m21ToXml
 
 from pianofold.symbolic.models import PianoArrangement
 
@@ -24,6 +25,7 @@ def arrangement_to_musicxml(
     left.partName = "Left Hand"
     right.insert(0, clef.TrebleClef())
     left.insert(0, clef.BassClef())
+    right.insert(0, tempo.MetronomeMark(number=bpm))
 
     for piano_note in arrangement.notes:
         part = right if piano_note.hand == "right" else left
@@ -34,7 +36,6 @@ def arrangement_to_musicxml(
         )
         part.insert(exported.offset, exported)
 
-    score.insert(0, tempo.MetronomeMark(number=bpm))
     score.insert(0, right)
     score.insert(0, left)
     score.insert(
@@ -43,7 +44,7 @@ def arrangement_to_musicxml(
             [right, left], name="Piano", abbreviation="Pno.", symbol="brace", barTogether=True
         ),
     )
-    score.write("musicxml", fp=path)
+    _write_deterministic_musicxml(score, path)
     return path
 
 
@@ -58,3 +59,12 @@ def _validate_bpm_and_parent(bpm: float, output_path: Path) -> Path:
 
 def _seconds_to_quarter_length(seconds: float, bpm: float) -> float:
     return seconds * bpm / 60
+
+
+def _write_deterministic_musicxml(score: stream.Score, path: Path) -> None:
+    exporter = m21ToXml.ScoreExporter(score)
+    document = exporter.parse()
+    encoding_date = document.find("./identification/encoding/encoding-date")
+    if encoding_date is not None:
+        encoding_date.text = "1970-01-01"
+    path.write_bytes(exporter.asBytes())
