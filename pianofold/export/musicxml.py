@@ -3,7 +3,7 @@
 from math import isfinite
 from pathlib import Path
 
-from music21 import clef, layout, note, stream, tempo
+from music21 import clef, instrument, layout, note, stream, tempo
 
 from pianofold.symbolic.models import PianoArrangement
 
@@ -16,6 +16,10 @@ def arrangement_to_musicxml(
     score = stream.Score()
     right = stream.PartStaff()
     right.partName = "Right Hand"
+    piano = instrument.Piano()
+    piano.partId = "Piano"
+    piano.instrumentId = "Piano-I1"
+    right.insert(0, piano)
     left = stream.PartStaff()
     left.partName = "Left Hand"
     right.insert(0, clef.TrebleClef())

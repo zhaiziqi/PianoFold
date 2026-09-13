@@ -47,3 +47,21 @@ def test_musicxml_export_requires_an_existing_parent_directory(tmp_path: Path) -
 
     with pytest.raises(ValueError, match="parent"):
         arrangement_to_musicxml(PianoArrangement((), "standard"), output)
+
+
+def test_musicxml_export_is_byte_deterministic_across_repeated_exports(tmp_path: Path) -> None:
+    """Unstable score-part IDs would make identical exports differ byte-for-byte."""
+    arrangement = PianoArrangement(
+        (
+            PianoNote(43, 0.0, 0.5, "left", ("bass",)),
+            PianoNote(60, 0.0, 1.0, "right", ("melody",)),
+        ),
+        "standard",
+    )
+    first = tmp_path / "first.musicxml"
+    second = tmp_path / "second.musicxml"
+
+    arrangement_to_musicxml(arrangement, first)
+    arrangement_to_musicxml(arrangement, second)
+
+    assert first.read_bytes() == second.read_bytes()
