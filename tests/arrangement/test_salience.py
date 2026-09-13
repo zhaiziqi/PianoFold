@@ -39,3 +39,16 @@ def test_score_salience_is_repeatable_and_id_keyed() -> None:
     first = score_salience(score, roles)
     assert first == score_salience(score, roles)
     assert list(first) == [note.id for note in score.notes]
+
+
+def test_five_semitone_adjacent_neighbor_has_positive_continuity() -> None:
+    score = ScoreIR(
+        notes=(
+            Note("first", 60, 0.0, 0.5, "piano"),
+            Note("next", 65, 0.5, 1.0, "piano"),
+        )
+    )
+    roles = analyze_roles(score)
+    weights = SalienceWeights(melody=0.0, harmony=0.0, duration=0.0, rhythm=0.0, continuity=1.0)
+
+    assert note_salience(score.notes[0], score, roles, weights) > 0.0

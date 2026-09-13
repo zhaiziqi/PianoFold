@@ -50,7 +50,7 @@ def note_salience(
         continuity_score = 0.0
     else:
         continuity_score = sum(
-            max(0.0, 1.0 - abs(note.pitch - neighbor.pitch) / 5.0)
+            max(0.0, 1.0 - abs(note.pitch - neighbor.pitch) / 6.0)
             for neighbor in neighbors
         ) / len(neighbors)
 

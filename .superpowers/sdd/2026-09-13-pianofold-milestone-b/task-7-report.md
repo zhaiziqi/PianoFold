@@ -26,4 +26,10 @@ Implemented only the Task 7 salience API in `pianofold/arrangement/salience.py` 
 
 ## Concerns
 
-The brief specifies the component concepts but not a single numeric sub-formula for rhythm and continuity. The implementation uses reciprocal onset cardinality for non-anchors and a linear `1 - gap / 5` continuity contribution, both deterministic and bounded.
+The brief specifies the component concepts but not a single numeric sub-formula for rhythm and continuity. The implementation uses reciprocal onset cardinality for non-anchors and a linear continuity contribution that stays positive through five semitones and reaches zero at six, both deterministic and bounded.
+
+## Boundary fix
+
+The continuity requirement was clarified to include a five-semitone adjacent neighbor. A focused test was added with continuity as the only nonzero weight. Before the fix, it failed as expected (`assert 0.0 > 0.0`) because the prior `1 - gap / 5` formula reached zero at the boundary. The minimal fix uses `max(0.0, 1 - gap / 6)`: gaps of five semitones remain positive, while gaps of six or more remain zero.
+
+After the fix, the focused salience suite passed **4 tests**, and the full suite passed **61 tests** (the same two dependency deprecation warnings).
