@@ -6,23 +6,32 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint .",
-    "test": "echo \"No frontend tests configured\""
+    "test": "vitest"
   },
   "dependencies": {
+    "@tonejs/midi": "^2.0.28",
     "next": "15.5.9",
+    "opensheetmusicdisplay": "^2.1.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "22.15.21",
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "10.4.21",
     "eslint": "9.29.0",
     "eslint-config-next": "15.5.9",
+    "jsdom": "^29.1.1",
     "postcss": "8.5.6",
     "tailwindcss": "3.4.17",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "vitest": "^5.0.0"
   }
 }
