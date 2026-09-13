@@ -44,6 +44,8 @@ def arrangement_to_musicxml(
             [right, left], name="Piano", abbreviation="Pno.", symbol="brace", barTogether=True
         ),
     )
+    right.makeNotation(inPlace=True)
+    left.makeNotation(inPlace=True)
     _write_deterministic_musicxml(score, path)
     return path
 

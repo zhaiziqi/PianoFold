@@ -101,3 +101,25 @@ def test_musicxml_export_emits_the_requested_tempo(tmp_path: Path) -> None:
     assert "<per-minute>90</per-minute>" in output.read_text(encoding="utf-8")
     parsed = converter.parse(output)
     assert [mark.number for mark in parsed.recurse().getElementsByClass(tempo.MetronomeMark)] == [90]
+
+
+def test_musicxml_export_notates_overlapping_hand_rhythms(tmp_path: Path) -> None:
+    """Dense overlapping onsets must be split into exportable measures and voices."""
+    arrangement = PianoArrangement(
+        (
+            PianoNote(40, 0.0, 0.125, "left", ("l0",)),
+            PianoNote(55, 0.125, 0.25, "right", ("r1",)),
+            PianoNote(43, 0.25, 0.375, "left", ("l2",)),
+            PianoNote(40, 0.375, 0.5, "left", ("l3",)),
+            PianoNote(59, 0.375, 0.5, "right", ("r4",)),
+            PianoNote(55, 0.5, 0.625, "right", ("r5",)),
+            PianoNote(43, 0.625, 0.75, "left", ("l6",)),
+            PianoNote(52, 0.625, 0.75, "left", ("l7",)),
+        ),
+        "simple",
+    )
+    output = arrangement_to_musicxml(arrangement, tmp_path / "dense.musicxml", 120.0)
+
+    parsed = converter.parse(output)
+
+    assert sorted(item.pitch.midi for item in parsed.recurse().notes) == [40, 40, 43, 43, 52, 55, 55, 59]
