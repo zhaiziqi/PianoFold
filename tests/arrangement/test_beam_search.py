@@ -135,6 +135,20 @@ def test_equal_score_hand_allocations_have_a_canonical_tie_break():
     assert [(n.pitch, n.hand) for n in result.notes] == [(60, "right")]
 
 
+def test_explicit_vocal_lead_stays_in_the_right_hand_over_accompaniment():
+    from pianofold.arrangement import arrange
+
+    score = ScoreIR((
+        Note("bass", 43, 0.0, 1.0, "electric_bass"),
+        Note("guitar", 72, 0.0, 1.0, "acoustic_guitar"),
+        Note("lead", 64, 0.0, 1.0, "voice"),
+    ))
+    result = arrange(score, SIMPLE, melody_note_ids=frozenset({"lead"}))
+    lead = next(note for note in result.notes if note.source_note_ids == ("lead",))
+    assert (lead.pitch, lead.hand) == (64, "right")
+    assert lead.velocity > 80
+
+
 def test_beam_keeps_an_alternative_until_later_movement_resolves_the_choice():
     """Greedy per-slice selection loses the smooth hand allocation available to a wider beam."""
     score = ScoreIR(tuple(Note(f"n-{i}", pitch, i * 2.0, i * 2.0 + 0.4, "piano") for i, pitch in enumerate((60, 68, 68, 68))))

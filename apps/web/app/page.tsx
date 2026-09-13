@@ -8,7 +8,7 @@ import { UploadDropzone } from "../components/upload-dropzone";
 import { ScoreViewer } from "../components/score-viewer";
 import { AudioPlayer } from "../components/audio-player";
 import { MidiPlayer } from "../components/midi-player";
-import { getProject, uploadProject } from "../lib/api";
+import { getProject, regenerateProject, uploadProject } from "../lib/api";
 import type { Difficulty, ProjectMetadata } from "../lib/project";
 
 function message(error: unknown) {
@@ -21,6 +21,7 @@ export default function Home() {
   const [project, setProject] = useState<ProjectMetadata | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [uploading, setUploading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generation, setGeneration] = useState(0);
   const requestVersion = useRef(0);
@@ -79,6 +80,21 @@ export default function Home() {
     }
   }
 
+  async function regenerate() {
+    if (!project || regenerating) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      await regenerateProject(project.project_id);
+      setProject({ ...project, status: "processing", stage: "transcribing", progress: 0, error: null, duration: null, melody_mode: null, notice: null, generation: project.generation + 1 });
+      setGeneration((value) => value + 1);
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   return (
     <main className="workspace mx-auto w-full max-w-5xl">
       <header className="masthead">
@@ -104,6 +120,10 @@ export default function Home() {
         <section className="arrangement" aria-labelledby="arrangement-heading">
           <div className="section-heading"><h2 id="arrangement-heading">Your piano arrangement</h2><span className="ready-label">Ready to play</span></div>
           <p className="project-id">Project ID <code>{project.project_id}</code></p>
+          {project.notice && <p className="muted" role="status">{project.notice}</p>}
+          <button type="button" className="button mb-6" disabled={regenerating} onClick={() => { void regenerate(); }}>
+            {regenerating ? "Starting improved arrangement…" : "Regenerate with improved melody"}
+          </button>
           <DifficultySelector value={difficulty} onChange={setDifficulty} />
           <DownloadActions projectId={project.project_id} difficulty={difficulty} />
           <ScoreViewer projectId={project.project_id} difficulty={difficulty} />

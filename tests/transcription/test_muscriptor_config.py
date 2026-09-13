@@ -14,8 +14,9 @@ from pianofold.transcription.muscriptor import (
     MuScriptorTranscriber,
     MuScriptorUnavailableError,
     TranscriptionOutput,
+    _combine_with_vocal_lead,
 )
-from pianofold.symbolic.models import Note, ScoreIR
+from pianofold.symbolic.models import Note, ScoreIR, TempoChange
 from pianofold.symbolic.serialize import read_score
 
 
@@ -38,16 +39,23 @@ class FakeModel:
         self.transcribe_calls = 0
         self.midi_events: list[object] = []
 
-    def transcribe(self, _audio_path: Path) -> list[object]:
+    def transcribe(self, _audio_path: Path, instruments: list[str] | None = None) -> list[object]:
         self.transcribe_calls += 1
         return [NoteStartEvent(64, 0.0, "piano"), NoteEndEvent(64, 0.5, "piano")]
 
-    def detect_beat_grid_for(self, _audio_path: Path, _detect_tempo: str) -> str:
-        return "fake-grid"
+    def detect_beat_grid_for(self, _audio_path: Path, _detect_tempo: str) -> object:
+        class FakeGrid:
+            bpm = 96.0
+            onset_delay = 0.0
 
-    def events_to_midi_bytes(self, events: object, *, beat_grid: str) -> bytes:
+            def with_onset_delay(self, _onsets: list[float]):
+                return self
+
+        return FakeGrid()
+
+    def events_to_midi_bytes(self, events: object, *, beat_grid: object) -> bytes:
         self.midi_events = list(events)  # type: ignore[arg-type]
-        assert beat_grid == "fake-grid"
+        assert getattr(beat_grid, "bpm") == 96.0
         return b"fake-midi"
 
 
@@ -101,18 +109,59 @@ def test_transcriber_explains_how_to_access_gated_weights(
     )
 
 
-def test_single_transcription_event_stream_produces_midi_and_score_ir(tmp_path: Path) -> None:
-    """A second transcription call or MIDI reparse would desynchronize persisted outputs."""
+def test_dual_transcription_keeps_the_full_score_when_vocal_evidence_is_insufficient(tmp_path: Path) -> None:
+    """A short constrained voice pass must fall back explicitly, not invent a lead."""
     audio_path = tmp_path / "input.wav"
     audio_path.write_bytes(b"present")
     model = FakeModel()
 
     output = MuScriptorTranscriber(model=model).transcribe_with_midi(audio_path)
 
-    assert model.transcribe_calls == 1
+    assert model.transcribe_calls == 2
     assert model.midi_events == [NoteStartEvent(64, 0.0, "piano"), NoteEndEvent(64, 0.5, "piano")]
     assert output.midi_bytes == b"fake-midi"
     assert [(note.pitch, note.start, note.end) for note in output.score.notes] == [(64, 0.0, 0.5)]
+    assert output.melody_mode == "instrumental"
+    assert output.score.tempo_changes[0].bpm == 96.0
+
+
+def test_reliable_constrained_voice_replaces_the_unconstrained_voice_track() -> None:
+    """A sufficiently long voice pass becomes the protected right-hand lead."""
+    voice = tuple(
+        Note(f"voice:{index}", 60 + index % 5, index * 0.8, index * 0.8 + 0.45, "voice")
+        for index in range(12)
+    )
+    full_score = ScoreIR(
+        (Note("guitar:0", 48, 0.0, 9.8, "acoustic_guitar"), *voice),
+        (TempoChange(0.0, 120.0),),
+    )
+    constrained = ScoreIR(voice, full_score.tempo_changes)
+
+    score, protected_ids, mode = _combine_with_vocal_lead(full_score, constrained)
+
+    assert mode == "vocal"
+    assert protected_ids == frozenset(f"lead:{index}" for index in range(12))
+    assert {note.id for note in score.notes if note.instrument == "voice"} == protected_ids
+    assert any(note.id == "guitar:0" for note in score.notes)
+
+
+def test_clean_full_mix_voice_is_protected_when_constrained_voice_is_noisy() -> None:
+    """The fallback must not let a noisy constrained decoder erase a real singer."""
+    voice = tuple(
+        Note(f"voice:{index}", 60 + index % 5, index * 0.8, index * 0.8 + 0.45, "voice")
+        for index in range(12)
+    )
+    full_score = ScoreIR(
+        (Note("guitar:0", 48, 0.0, 9.8, "acoustic_guitar"), *voice),
+        (TempoChange(0.0, 120.0),),
+    )
+    noisy_constrained = ScoreIR((Note("candidate:0", 72, 0.0, 0.4, "voice"),))
+
+    score, protected_ids, mode = _combine_with_vocal_lead(full_score, noisy_constrained)
+
+    assert mode == "vocal"
+    assert protected_ids == frozenset(note.id for note in voice)
+    assert {note.id for note in score.notes if note.instrument == "voice"} == protected_ids
 
 
 def test_smoke_command_rejects_missing_input_without_loading_a_model(tmp_path: Path) -> None:

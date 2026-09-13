@@ -43,7 +43,9 @@ def main() -> None:
     if not score_path.is_file() or score_path.resolve() != score_path:
         parser.error(f"Project {args.project_id} has no readable score_ir.json")
     try:
-        score = quantize_score(read_score(score_path), 120.0)
+        source = read_score(score_path)
+        bpm = source.tempo_changes[0].bpm if source.tempo_changes else 120.0
+        score = quantize_score(source, bpm)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.error(f"Cannot read project score_ir.json: {error}")
     metrics = {

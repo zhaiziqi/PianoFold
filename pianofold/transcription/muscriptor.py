@@ -2,10 +2,10 @@
 
 from collections import defaultdict, deque
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 
-from pianofold.symbolic.models import Note, ScoreIR
+from pianofold.symbolic.models import Note, ScoreIR, TempoChange
+from pianofold.transcription.base import TranscriptionOutput
 
 
 _WEIGHTS_HELP = """MuScriptor weights are not available.
@@ -25,15 +25,7 @@ class TranscriptionParseError(ValueError):
     """MuScriptor emitted an incomplete or inconsistent note-event stream."""
 
 
-@dataclass(frozen=True, slots=True)
-class TranscriptionOutput:
-    """Raw provider MIDI and its direct provider-neutral score conversion."""
-
-    midi_bytes: bytes
-    score: ScoreIR
-
-
-def events_to_score_ir(events: Iterable[object]) -> ScoreIR:
+def events_to_score_ir(events: Iterable[object], *, skip_invalid_ends: bool = False) -> ScoreIR:
     """Convert MuScriptor note events directly into provider-neutral ScoreIR.
 
     The small duck-typed surface allows synthetic local event fixtures while
@@ -52,6 +44,12 @@ def events_to_score_ir(events: Iterable[object]) -> ScoreIR:
                     f"unmatched end for {instrument!r} pitch {pitch}"
                 )
             start, index = waiting.popleft()
+            if end <= start:
+                if skip_invalid_ends:
+                    continue
+                raise TranscriptionParseError(
+                    f"end at {end:.3f}s is not after start at {start:.3f}s for {instrument!r} pitch {pitch}"
+                )
             notes.append(Note(f"{instrument}:{index}", pitch, start, end, instrument))
         elif _is_note_start(event):
             instrument, pitch, start = _start_fields(event)
@@ -125,15 +123,21 @@ class MuScriptorTranscriber:
         return self._load_model().transcribe_to_midi(audio_path)
 
     def transcribe_with_midi(self, audio_path: Path) -> TranscriptionOutput:
-        """Perform one event-stream transcription and serialize both outputs."""
+        """Build accompaniment plus a constrained, vocal-first lead line."""
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio input does not exist: {audio_path}")
         model = self._load_model()
         beat_grid = model.detect_beat_grid_for(audio_path, "best-effort")
         events = list(model.transcribe(audio_path))
+        full_score, onset_delay = _score_with_timing(events, beat_grid)
+        voice_events = list(model.transcribe(audio_path, instruments=["voice"]))
+        voice_score, _ = _score_with_timing(voice_events, beat_grid, onset_delay)
+        score, melody_note_ids, melody_mode = _combine_with_vocal_lead(full_score, voice_score)
         return TranscriptionOutput(
             midi_bytes=model.events_to_midi_bytes(iter(events), beat_grid=beat_grid),
-            score=events_to_score_ir(events),
+            score=score,
+            melody_note_ids=melody_note_ids,
+            melody_mode=melody_mode,
         )
 
     def _load_model(self):
@@ -159,3 +163,80 @@ class MuScriptorTranscriber:
         except ModelDownloadError as error:
             raise MuScriptorUnavailableError(_WEIGHTS_HELP) from error
         return self._model
+
+
+def _score_with_timing(
+    events: Iterable[object], beat_grid: object | None, onset_delay: float | None = None
+) -> tuple[ScoreIR, float]:
+    """Keep source times aligned to audio while retaining detected tempo."""
+    score = events_to_score_ir(events, skip_invalid_ends=onset_delay is not None)
+    if beat_grid is None:
+        return score, 0.0
+    if onset_delay is None:
+        onsets = [note.start for note in score.notes]
+        measured = beat_grid.with_onset_delay(onsets)
+        onset_delay = float(measured.onset_delay or 0.0)
+    bpm = float(beat_grid.bpm)
+    notes = tuple(
+        Note(
+            note.id,
+            note.pitch,
+            max(0.0, note.start - onset_delay),
+            max(max(0.0, note.start - onset_delay) + 0.001, note.end - onset_delay),
+            note.instrument,
+            note.velocity,
+        )
+        for note in score.notes
+    )
+    return ScoreIR(notes, (TempoChange(0.0, bpm),)), onset_delay
+
+
+def _combine_with_vocal_lead(
+    full_score: ScoreIR, voice_score: ScoreIR
+) -> tuple[ScoreIR, frozenset[str], str]:
+    """Replace unconstrained voice guesses with one reliable lead per onset."""
+    constrained = _vocal_leaders(voice_score)
+    general_voice = tuple(note for note in full_score.notes if note.instrument == "voice")
+    if _reliable_vocal_line(constrained, general_voice):
+        accompaniment = [note for note in full_score.notes if note.instrument != "voice"]
+        remapped_voice = [
+            Note(f"lead:{index}", note.pitch, note.start, note.end, "voice", note.velocity)
+            for index, note in enumerate(constrained)
+        ]
+        score = ScoreIR(tuple(accompaniment + remapped_voice), full_score.tempo_changes)
+        return score, frozenset(note.id for note in remapped_voice), "vocal"
+
+    # The unrestricted pass can itself provide a clean, sparse voice track.
+    # Prefer that over treating the song as instrumental when the constrained
+    # decoder is overly dense or loses EOS markers in a few chunks.
+    fallback_voice = _vocal_leaders(ScoreIR(general_voice, full_score.tempo_changes))
+    if _reliable_vocal_line(fallback_voice, ()):
+        accompaniment = [note for note in full_score.notes if note.instrument != "voice"]
+        score = ScoreIR(tuple(accompaniment + list(fallback_voice)), full_score.tempo_changes)
+        return score, frozenset(note.id for note in fallback_voice), "vocal"
+
+    return full_score, frozenset(), "instrumental"
+
+
+def _vocal_leaders(score: ScoreIR) -> tuple[Note, ...]:
+    """Keep a monophonic, deterministic lead when the constrained pass overlaps."""
+    by_onset: dict[float, list[Note]] = defaultdict(list)
+    for note in score.notes:
+        by_onset[note.start].append(note)
+    return tuple(
+        max(notes, key=lambda note: (note.end - note.start, note.pitch, note.id))
+        for _, notes in sorted(by_onset.items())
+    )
+
+
+def _reliable_vocal_line(candidate: tuple[Note, ...], general_voice: tuple[Note, ...]) -> bool:
+    """Reject short or unsupported constrained output before calling it a vocal."""
+    if len(candidate) < 12 or candidate[-1].end - candidate[0].start < 8.0:
+        return False
+    if not general_voice:
+        return True
+    matched = sum(
+        any(abs(note.start - other.start) <= 0.15 and abs(note.pitch - other.pitch) <= 1 for other in general_voice)
+        for note in candidate
+    )
+    return matched / len(candidate) >= 0.20

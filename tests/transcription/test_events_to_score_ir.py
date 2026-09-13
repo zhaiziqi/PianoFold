@@ -106,3 +106,17 @@ def test_missing_end_raises_parse_error() -> None:
     events = [NoteStartEvent(pitch=60, time=0.0, instrument="piano")]
     with pytest.raises(TranscriptionParseError, match="missing end"):
         events_to_score_ir(events)
+
+
+def test_invalid_end_is_rejected_or_skipped_by_the_explicit_recovery_mode() -> None:
+    """Malformed constrained voice chunks cannot become zero-length score notes."""
+    events = [
+        NoteStartEvent(60, 1.0, "voice"),
+        NoteEndEvent(60, 1.0, "voice"),
+        NoteStartEvent(62, 2.0, "voice"),
+        NoteEndEvent(62, 2.5, "voice"),
+    ]
+    with pytest.raises(TranscriptionParseError, match="not after start"):
+        events_to_score_ir(events)
+    recovered = events_to_score_ir(events, skip_invalid_ends=True)
+    assert [(note.pitch, note.start, note.end) for note in recovered.notes] == [(62, 2.0, 2.5)]

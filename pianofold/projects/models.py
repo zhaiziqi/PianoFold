@@ -24,6 +24,9 @@ class ProjectMetadata:
     model: str = "muscriptor-small"
     device: str = "mps"
     profiles: tuple[str, ...] = ("simple", "standard", "rich")
+    melody_mode: str | None = None
+    notice: str | None = None
+    generation: int = 0
 
     def __post_init__(self) -> None:
         try:
@@ -51,6 +54,12 @@ class ProjectMetadata:
             not _finite_number(self.duration) or self.duration < 0
         ):
             raise ValueError("duration must be finite and nonnegative")
+        if self.melody_mode not in {None, "vocal", "instrumental"}:
+            raise ValueError("melody_mode must be vocal, instrumental, or null")
+        if self.notice is not None and (not isinstance(self.notice, str) or not self.notice.strip()):
+            raise ValueError("notice must be a non-empty string or null")
+        if isinstance(self.generation, bool) or not isinstance(self.generation, int) or self.generation < 0:
+            raise ValueError("generation must be a nonnegative integer")
         object.__setattr__(self, "profiles", tuple(self.profiles))
 
 

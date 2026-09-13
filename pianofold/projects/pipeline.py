@@ -17,7 +17,7 @@ from pianofold.transcription.base import Transcriber
 
 
 PROFILES = (SIMPLE, STANDARD, RICH)
-BPM = 120.0
+DEFAULT_BPM = 120.0
 
 
 class PianoFoldPipeline:
@@ -32,19 +32,21 @@ class PianoFoldPipeline:
         try:
             metadata = replace(metadata, status="processing", stage="transcribing", progress=0.1, error=None, duration=None)
             write_metadata(project_dir, metadata)
-            score, midi_bytes = self._transcribe(audio_path)
+            score, midi_bytes, melody_note_ids, melody_mode = self._transcribe(audio_path)
             if not score.notes:
                 raise ValueError("Transcription produced no notes")
             if midi_bytes is not None:
                 (project_dir / "transcription.mid").write_bytes(midi_bytes)
             write_score(project_dir / "score_ir.json", score)
 
-            metadata = replace(metadata, stage="analyzing", progress=0.35)
+            notice = None if melody_mode == "vocal" else "No reliable vocal line was detected; this is an instrumental arrangement."
+            metadata = replace(metadata, stage="analyzing", progress=0.35, melody_mode=melody_mode, notice=notice)
             write_metadata(project_dir, metadata)
-            quantized = quantize_score(score, BPM)
+            bpm = score.tempo_changes[0].bpm if score.tempo_changes else DEFAULT_BPM
+            quantized = quantize_score(score, bpm)
             metadata = replace(metadata, stage="arranging", progress=0.55)
             write_metadata(project_dir, metadata)
-            arrangements = [arrange(quantized, profile) for profile in PROFILES]
+            arrangements = [arrange(quantized, profile, melody_note_ids=melody_note_ids) for profile in PROFILES]
 
             metadata = replace(metadata, stage="exporting", progress=0.75)
             write_metadata(project_dir, metadata)
@@ -54,8 +56,8 @@ class PianoFoldPipeline:
             for profile, arrangement in zip(PROFILES, arrangements, strict=True):
                 midi_path = project_dir / f"{profile.name}.mid"
                 xml_path = project_dir / f"{profile.name}.musicxml"
-                arrangement_to_midi(arrangement, midi_path, BPM)
-                arrangement_to_musicxml(arrangement, xml_path, BPM)
+                arrangement_to_midi(arrangement, midi_path, bpm)
+                arrangement_to_musicxml(arrangement, xml_path, bpm)
                 required.extend((midi_path, xml_path))
             missing = [path.name for path in required if not path.is_file()]
             if missing:
@@ -72,12 +74,17 @@ class PianoFoldPipeline:
             write_metadata(project_dir, metadata)
         return ProjectResult(project_dir=project_dir, metadata=metadata)
 
-    def _transcribe(self, audio_path: Path) -> tuple[ScoreIR, bytes | None]:
+    def _transcribe(self, audio_path: Path) -> tuple[ScoreIR, bytes | None, frozenset[str], str]:
         combined = getattr(self.transcriber, "transcribe_with_midi", None)
         if callable(combined):
             output = combined(audio_path)
-            return output.score, output.midi_bytes
-        return self.transcriber.transcribe(audio_path), None
+            return (
+                output.score,
+                output.midi_bytes,
+                frozenset(getattr(output, "melody_note_ids", frozenset())),
+                getattr(output, "melody_mode", "instrumental"),
+            )
+        return self.transcriber.transcribe(audio_path), None, frozenset(), "instrumental"
 
 
 def _initial_metadata(project_dir: Path) -> ProjectMetadata:

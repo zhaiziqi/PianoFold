@@ -37,7 +37,7 @@ def _hand_track(name: str, notes: object, bpm: float) -> mido.MidiTrack:
     for note in notes:  # type: ignore[union-attr]
         start_tick = _seconds_to_ticks(note.start, bpm)
         end_tick = max(_seconds_to_ticks(note.end, bpm), start_tick + 1)
-        events.append((start_tick, 1, note.pitch, 80))
+        events.append((start_tick, 1, note.pitch, note.velocity))
         events.append((end_tick, 0, note.pitch, 0))
     previous_tick = 0
     for tick, event_kind, pitch, velocity in sorted(events, key=lambda event: (event[0], event[1], event[2])):

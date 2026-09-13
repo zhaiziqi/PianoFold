@@ -76,6 +76,10 @@ export async function getProject(projectId: string): Promise<ProjectMetadata> {
   return request(projectUrl(projectId), { cache: "no-store" });
 }
 
+export async function regenerateProject(projectId: string): Promise<ProjectSubmission> {
+  return request(`${projectUrl(projectId)}/regenerate`, { method: "POST" });
+}
+
 export function audioUrl(projectId: string): string {
   return `${projectUrl(projectId)}/audio`;
 }

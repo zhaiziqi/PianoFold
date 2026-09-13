@@ -5,7 +5,7 @@ export type ProjectStatus = "uploaded" | "processing" | "done" | "failed";
 
 export const PROJECT_STAGES = {
   uploaded: "Uploaded",
-  transcribing: "Transcribing audio",
+  transcribing: "Finding the vocal melody",
   analyzing: "Analyzing the music",
   arranging: "Creating piano arrangements",
   exporting: "Preparing scores and downloads",
@@ -30,4 +30,7 @@ export interface ProjectMetadata {
   model: string;
   device: string;
   profiles: string[];
+  melody_mode: "vocal" | "instrumental" | null;
+  notice: string | null;
+  generation: number;
 }

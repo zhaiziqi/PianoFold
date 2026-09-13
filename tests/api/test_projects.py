@@ -43,6 +43,9 @@ def test_upload_returns_project_id_then_status_and_artifacts(client, tmp_path):
         "project_id": project_id, "status": "done", "stage": "done", "progress": 1.0,
         "error": None, "duration": 1.0, "model": "muscriptor-small", "device": "mps",
         "profiles": ["simple", "standard", "rich"],
+        "melody_mode": "instrumental",
+        "notice": "No reliable vocal line was detected; this is an instrumental arrangement.",
+        "generation": 0,
     }
     assert client.get(f"/api/projects/{project_id}/audio").content == b"audio"
     for difficulty in ("simple", "standard", "rich"):
@@ -100,6 +103,29 @@ def test_status_reads_persisted_metadata(client, uploaded_project):
     assert response.status_code == 200
     assert response.json()["status"] == "failed"
     assert response.json()["error"] == "provider failed"
+
+
+def test_regenerate_reuses_saved_audio_and_increments_generation(client, tmp_path):
+    first = client.post("/api/projects", files={"audio": ("song.wav", b"audio", "audio/wav")})
+    project_id = first.json()["project_id"]
+    response = client.post(f"/api/projects/{project_id}/regenerate")
+
+    assert response.status_code == 202
+    assert response.json() == {"project_id": project_id, "status": "processing"}
+    metadata = client.get(f"/api/projects/{project_id}").json()
+    assert metadata["status"] == "done"
+    assert metadata["generation"] == 1
+    assert metadata["melody_mode"] == "instrumental"
+    assert (tmp_path / project_id / "input.wav").read_bytes() == b"audio"
+
+
+def test_regenerate_rejects_a_project_that_is_already_processing(client, uploaded_project):
+    write_metadata(uploaded_project, replace(
+        read_metadata(uploaded_project), status="processing", stage="transcribing", progress=0.1,
+    ))
+    response = client.post(f"/api/projects/{uploaded_project.name}/regenerate")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "This project is already processing"
 
 
 @pytest.mark.parametrize("suffix", ["audio", "arrangements/simple/midi", "arrangements/standard/musicxml", "arrangements/rich/midi"])

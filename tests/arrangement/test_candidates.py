@@ -142,3 +142,17 @@ def test_incompatible_outer_anchors_still_offer_nonempty_playable_subsets() -> N
     notes = (Note("low", 21, 0.0, 0.4, "piano"), Note("high", 54, 0.0, 0.4, "piano"))
     candidates = generate_voicing_candidates(notes, {"low": 0.5, "high": 0.7}, SIMPLE)
     assert {c.source_note_ids for c in candidates} == {("low",), ("high",)}
+
+
+def test_required_vocal_note_is_always_a_right_hand_candidate() -> None:
+    """A detected lead cannot be displaced by a more salient accompaniment pitch."""
+    notes = (
+        Note("bass", 43, 0.0, 1.0, "electric_bass"),
+        Note("guitar", 72, 0.0, 1.0, "acoustic_guitar"),
+        Note("lead", 64, 0.0, 1.0, "voice"),
+    )
+    candidates = generate_voicing_candidates(
+        notes, {"bass": 1.0, "guitar": 1.0, "lead": 0.1}, SIMPLE, frozenset({"lead"}),
+    )
+    assert candidates
+    assert all(64 in candidate.right and "lead" in candidate.source_note_ids for candidate in candidates)

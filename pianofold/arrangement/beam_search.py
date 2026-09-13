@@ -23,7 +23,12 @@ def _state_order(state: _State) -> tuple:
     return (-state.score, state.voicing.left, state.voicing.right, state.voicing.source_note_ids)
 
 
-def arrange(score: ScoreIR, profile: DifficultyProfile, beam_width: int = 16) -> PianoArrangement:
+def arrange(
+    score: ScoreIR,
+    profile: DifficultyProfile,
+    beam_width: int = 16,
+    melody_note_ids: frozenset[str] = frozenset(),
+) -> PianoArrangement:
     """Select piano notes without changing source timing; quantization is upstream.
 
     Each surviving state stores one voicing and a compact predecessor pointer.
@@ -43,7 +48,8 @@ def arrange(score: ScoreIR, profile: DifficultyProfile, beam_width: int = 16) ->
     )
     if not pitched_score.notes:
         return PianoArrangement((), profile.name)
-    salience = score_salience(pitched_score, analyze_roles(pitched_score))
+    roles = analyze_roles(pitched_score)
+    salience = score_salience(pitched_score, roles)
     slices: dict[float, list[Note]] = defaultdict(list)
     for note in pitched_score.notes:
         slices[note.start].append(note)
@@ -51,7 +57,8 @@ def arrange(score: ScoreIR, profile: DifficultyProfile, beam_width: int = 16) ->
     beam: list[_State] = []
     for start, notes in sorted(slices.items()):
         next_states = []
-        for candidate in generate_voicing_candidates(notes, salience, profile):
+        required_right_ids = frozenset(note.id for note in notes if note.id in melody_note_ids)
+        for candidate in generate_voicing_candidates(notes, salience, profile, required_right_ids):
             reward = profile.fidelity_weight * fidelity_score(notes, candidate, salience)
             if beam:
                 # Paths ending at the same voicing have identical future costs:
@@ -77,7 +84,10 @@ def arrange(score: ScoreIR, profile: DifficultyProfile, beam_width: int = 16) ->
         for hand, pitches in (("left", state.voicing.left), ("right", state.voicing.right)):
             for pitch in pitches:
                 note = sources[pitch].popleft()
-                selected.append(PianoNote(pitch, note.start, note.end, hand, (note.id,)))
+                selected.append(PianoNote(
+                    pitch, note.start, note.end, hand, (note.id,),
+                    _expressive_velocity(note, hand, note.id in melody_note_ids or note.id in roles.melody_anchors),
+                ))
         state = state.previous
 
     return PianoArrangement(
@@ -87,3 +97,10 @@ def arrange(score: ScoreIR, profile: DifficultyProfile, beam_width: int = 16) ->
 
 
 __all__ = ["arrange"]
+
+
+def _expressive_velocity(note: Note, hand: str, is_melody: bool) -> int:
+    """Give otherwise velocity-less source events a restrained piano dynamic."""
+    accent = 5 if round(note.start * 2) % 4 == 0 else 0
+    value = 72 + accent + (16 if is_melody else 0) + (6 if hand == "left" else 0)
+    return max(1, min(127, value))

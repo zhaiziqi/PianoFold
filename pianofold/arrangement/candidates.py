@@ -19,7 +19,8 @@ class Voicing:
 
 
 def generate_voicing_candidates(
-    notes: Sequence[Note], salience: Mapping[str, float], profile: DifficultyProfile
+    notes: Sequence[Note], salience: Mapping[str, float], profile: DifficultyProfile,
+    required_right_ids: frozenset[str] = frozenset(),
 ) -> list[Voicing]:
     """Return at most 32 playable hand allocations, in canonical order."""
     valid_notes = tuple(note for note in notes if note.id)
@@ -29,6 +30,10 @@ def generate_voicing_candidates(
     ranked = sorted(valid_notes, key=lambda note: (-salience[note.id], note.pitch, note.id))
     retained = list(ranked[:8])
     retained_ids = {note.id for note in retained}
+    for note in valid_notes:
+        if note.id in required_right_ids and note.id not in retained_ids:
+            retained.append(note)
+            retained_ids.add(note.id)
     for outer in (
         min(valid_notes, key=lambda note: (note.pitch, note.id)),
         max(valid_notes, key=lambda note: (note.pitch, note.id)),
@@ -37,12 +42,16 @@ def generate_voicing_candidates(
             retained.append(outer)
             retained_ids.add(outer.id)
 
-    outer_ids = {
-        min(valid_notes, key=lambda note: (note.pitch, note.id)).id,
-        max(valid_notes, key=lambda note: (note.pitch, note.id)).id,
-    }
+    outer_ids = {min(valid_notes, key=lambda note: (note.pitch, note.id)).id}
+    if required_right_ids:
+        outer_ids.update(required_right_ids)
+    else:
+        outer_ids.add(max(valid_notes, key=lambda note: (note.pitch, note.id)).id)
     candidates: set[Voicing] = set()
-    hand_options = (("omit",) + _legal_hands(note.pitch) for note in retained)
+    hand_options = (
+        ("right",) if note.id in required_right_ids else ("omit",) + _legal_hands(note.pitch)
+        for note in retained
+    )
     for hands in product(*hand_options):
         left = tuple(sorted(note.pitch for note, hand in zip(retained, hands) if hand == "left"))
         right = tuple(sorted(note.pitch for note, hand in zip(retained, hands) if hand == "right"))

@@ -5,6 +5,7 @@ import {
   getProject,
   midiUrl,
   musicxmlUrl,
+  regenerateProject,
   uploadProject,
 } from "./api";
 import type { Difficulty, ProjectMetadata } from "./project";
@@ -21,6 +22,9 @@ const metadata: ProjectMetadata = {
   model: "muscriptor-small",
   device: "mps",
   profiles: ["simple", "standard", "rich"],
+  melody_mode: null,
+  notice: null,
+  generation: 0,
 };
 
 function mockResponse(body: unknown, status = 200) {
@@ -64,6 +68,13 @@ describe("project requests", () => {
     expect(fetchMock).toHaveBeenCalledWith(`/api/projects/${PROJECT_ID}`, {
       cache: "no-store",
     });
+  });
+
+  it("asks the API to regenerate an existing project", async () => {
+    const submission = { project_id: PROJECT_ID, status: "processing" };
+    const fetchMock = mockResponse(submission, 202);
+    await expect(regenerateProject(PROJECT_ID)).resolves.toEqual(submission);
+    expect(fetchMock).toHaveBeenCalledWith(`/api/projects/${PROJECT_ID}/regenerate`, { method: "POST" });
   });
 
   it("preserves readable API failure details and HTTP status", async () => {

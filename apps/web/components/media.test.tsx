@@ -9,13 +9,14 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(), synth: vi.fn(), attack: vi.fn(), dispose: vi.fn(), release: vi.fn(),
   midi: vi.fn(), transportStart: vi.fn(), stop: vi.fn(), cancel: vi.fn(), schedule: vi.fn(), clearEvent: vi.fn(),
   immediate: vi.fn(),
+  loaded: vi.fn(),
 }));
 vi.mock("opensheetmusicdisplay", () => ({ OpenSheetMusicDisplay: class {
   constructor(container: HTMLElement, options: unknown) { mocks.score(container, options); }
   load = mocks.load; render = mocks.render; clear = mocks.clear;
 } }));
 vi.mock("tone", () => ({
-  start: mocks.start, Synth: class {}, PolySynth: class {
+  start: mocks.start, loaded: mocks.loaded, Sampler: class {
     constructor() { mocks.synth(); }
     toDestination() { return this; }
     triggerAttackRelease = mocks.attack; releaseAll = mocks.release; dispose = mocks.dispose;
@@ -44,6 +45,7 @@ beforeEach(() => {
   mocks.load.mockReset().mockResolvedValue(undefined);
   mocks.render.mockReset();
   mocks.start.mockReset().mockResolvedValue(undefined);
+  mocks.loaded.mockReset().mockResolvedValue(undefined);
   mocks.immediate.mockReturnValue(0);
   mocks.schedule.mockImplementation((_callback, time) => time + 10);
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "<score-partwise/>", arrayBuffer: async () => bytes }));

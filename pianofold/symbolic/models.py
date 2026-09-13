@@ -49,6 +49,7 @@ class PianoNote:
     end: float
     hand: str
     source_note_ids: tuple[str, ...]
+    velocity: int = 80
 
     def __post_init__(self) -> None:
         if not 0 <= self.pitch <= 127:
@@ -61,6 +62,8 @@ class PianoNote:
             raise ValueError("hand must be left or right")
         if not self.source_note_ids or any(not source_id for source_id in self.source_note_ids):
             raise ValueError("source_note_ids must contain non-empty IDs")
+        if not 1 <= self.velocity <= 127:
+            raise ValueError("velocity must be in the MIDI range 1..127")
 
 
 @dataclass(frozen=True, slots=True)

@@ -49,6 +49,14 @@ def _artifact_path(directory: Path, filename: str) -> Path:
     return path
 
 
+def _input_audio_path(directory: Path) -> Path:
+    for extension in ALLOWED_EXTENSIONS:
+        candidate = directory / f"input{extension}"
+        if candidate.is_file():
+            return _artifact_path(directory, candidate.name)
+    raise HTTPException(status_code=404, detail="Original audio file not found")
+
+
 def _process_project(factory: Callable[[], PianoFoldPipeline], input_path: Path, project_dir: Path) -> None:
     """Construct the provider only after submission; persist construction failures."""
     try:
@@ -90,14 +98,38 @@ def get_project(project_id: str, request: Request) -> ProjectMetadata:
     return read_metadata(_project_directory(request, project_id))
 
 
+@router.post("/{project_id}/regenerate", status_code=status.HTTP_202_ACCEPTED)
+def regenerate_project(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+) -> dict[str, str]:
+    """Re-run a completed local project without asking the user to upload again."""
+    directory = _project_directory(request, project_id)
+    metadata = read_metadata(directory)
+    if metadata.status == "processing":
+        raise HTTPException(status_code=409, detail="This project is already processing")
+    input_path = _input_audio_path(directory)
+    write_metadata(directory, replace(
+        metadata,
+        status="processing",
+        stage="transcribing",
+        progress=0.0,
+        error=None,
+        duration=None,
+        melody_mode=None,
+        notice=None,
+        generation=metadata.generation + 1,
+    ))
+    background_tasks.add_task(_process_project, request.app.state.pipeline_factory, input_path, directory)
+    return {"project_id": project_id, "status": "processing"}
+
+
 @router.get("/{project_id}/audio")
 def get_audio(project_id: str, request: Request) -> FileResponse:
     directory = _project_directory(request, project_id)
-    for extension in ALLOWED_EXTENSIONS:
-        filename = f"input{extension}"
-        if (directory / filename).is_file():
-            return FileResponse(_artifact_path(directory, filename), filename=filename)
-    raise HTTPException(status_code=404, detail="File not found")
+    input_path = _input_audio_path(directory)
+    return FileResponse(input_path, filename=input_path.name)
 
 
 def _arrangement_file(request: Request, project_id: str, difficulty: str, suffix: str) -> FileResponse:

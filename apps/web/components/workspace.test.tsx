@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "../app/page";
-import { getProject, uploadProject } from "../lib/api";
+import { getProject, regenerateProject, uploadProject } from "../lib/api";
 import { PROJECT_STAGES, type ProjectMetadata } from "../lib/project";
 import { ProcessingStatus } from "./processing-status";
 
@@ -10,6 +10,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/api")>(),
   uploadProject: vi.fn(),
   getProject: vi.fn(),
+  regenerateProject: vi.fn(),
 }));
 // Keep the integrated score component real, replacing only its browser renderer and HTTP boundary.
 vi.mock("opensheetmusicdisplay", () => ({ OpenSheetMusicDisplay: class {
@@ -23,7 +24,8 @@ const OTHER_ID = "22222222-2222-4222-8222-222222222222";
 const wav = new File(["audio"], "Evening song.wav", { type: "audio/wav" });
 const metadata = (overrides: Partial<ProjectMetadata> = {}): ProjectMetadata => ({
   project_id: PROJECT_ID, status: "processing", stage: "transcribing", progress: 0.2,
-  error: null, duration: null, model: "model", device: "cpu", profiles: [], ...overrides,
+  error: null, duration: null, model: "model", device: "cpu", profiles: [],
+  melody_mode: null, notice: null, generation: 0, ...overrides,
 });
 const done = metadata({ status: "done", stage: "done", progress: 1 });
 const deferred = <T,>() => {
@@ -43,6 +45,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "<score-partwise/>" }));
   vi.mocked(uploadProject).mockReset().mockResolvedValue({ project_id: PROJECT_ID, status: "processing" });
   vi.mocked(getProject).mockReset().mockResolvedValue(metadata());
+  vi.mocked(regenerateProject).mockReset().mockResolvedValue({ project_id: PROJECT_ID, status: "processing" });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -60,7 +63,7 @@ describe("local workspace", () => {
     render(<Home />);
     await act(async () => { fireEvent.drop(screen.getByTestId("upload-dropzone"), { dataTransfer: { files: [wav] } }); });
     expect(uploadProject).toHaveBeenCalledWith(wav);
-    expect(screen.getByText("Transcribing audio")).toBeVisible();
+    expect(screen.getByText("Finding the vocal melody")).toBeVisible();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "20");
     await tick(999);
     expect(getProject).toHaveBeenCalledTimes(1);
@@ -97,7 +100,7 @@ describe("local workspace", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Audio file is empty.");
     expect(getProject).not.toHaveBeenCalled();
     await choose();
-    expect(screen.getByText("Transcribing audio")).toBeVisible();
+    expect(screen.getByText("Finding the vocal melody")).toBeVisible();
   });
 
   it("switches semantic difficulty radios and both selected download routes", async () => {
@@ -119,6 +122,16 @@ describe("local workspace", () => {
     await choose();
 
     expect(screen.getByText(PROJECT_ID)).toBeVisible();
+  });
+
+  it("regenerates a completed project without uploading the original song again", async () => {
+    vi.mocked(getProject).mockResolvedValueOnce(done).mockResolvedValue(metadata({ progress: 0 }));
+    render(<Home />);
+    await choose();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /regenerate with improved melody/i })); });
+    expect(regenerateProject).toHaveBeenCalledWith(PROJECT_ID);
+    expect(screen.getByText("Finding the vocal melody")).toBeVisible();
+    expect(uploadProject).toHaveBeenCalledOnce();
   });
 
   it("supports keyboard focus on the file picker and arrow-key difficulty selection", async () => {

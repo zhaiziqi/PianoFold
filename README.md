@@ -13,10 +13,12 @@ moment when a recording becomes something you can put beneath your hands.
 ## What it does
 
 - Accepts **MP3, WAV, M4A, and FLAC** recordings.
-- Transcribes audio locally with MuScriptor-small on Apple Silicon.
+- Transcribes audio locally with MuScriptor-small on Apple Silicon, using a
+  second vocal-only pass when a reliable sung lead is present.
 - Creates three playable piano arrangements for different levels of comfort.
 - Displays MusicXML sheet music in the browser.
-- Plays the original recording and the generated piano MIDI independently.
+- Plays the original recording and the generated piano MIDI independently,
+  using locally bundled acoustic-piano samples.
 - Exports MIDI and MusicXML for every arrangement.
 - Keeps a project progress record and provides a deterministic arrangement
   complexity and fidelity report.
@@ -64,9 +66,11 @@ npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000), choose a song, and keep
-the page open while the arrangement is prepared. On this machine, a three-and-
-a-half-minute MP3 has taken about two minutes from upload to completed exports.
-The first run may take longer while the model loads.
+the page open while the arrangement is prepared. PianoFold makes one full-mix
+pass and one vocal-only pass so that a singer's line can be preserved as the
+right-hand melody. On this machine, a three-and-a-half-minute MP3 takes about
+four to five minutes from upload to completed exports. The first run may take
+longer while the model loads.
 
 ## Your workspace
 
@@ -75,6 +79,12 @@ Once processing finishes, choose **Simple**, **Standard**, or **Rich** to:
 1. Read the generated score directly in the browser.
 2. Listen to the original recording or the piano MIDI preview.
 3. Download the selected arrangement as MIDI or MusicXML.
+
+If an earlier result does not reflect the melody well, use **Regenerate with
+improved melody**. The workspace keeps the same project and original upload,
+then replaces its score and exports with the current vocal-first pipeline. If
+the recording has no sufficiently reliable vocal line, it explicitly switches
+to instrumental mode rather than inventing one.
 
 The project ID displayed in the workspace can be used to inspect the saved
 arrangement metrics:
@@ -111,3 +121,9 @@ or score cannot be accidentally included in a commit.
 
 For a complete manual test flow, see the
 [local workspace acceptance checklist](docs/acceptance/local-workspace.md).
+
+## Third-party audio samples
+
+The piano preview uses a compact local subset of Salamander Grand Piano v3.
+Its attribution and Creative Commons license are recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
