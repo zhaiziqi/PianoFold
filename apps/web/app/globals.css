@@ -42,6 +42,8 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .progress-track { margin: 20px 0 14px; height: 4px; background: #dfddcf; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--accent); transition: width .2s ease; }
 .ready-label { font-size: 11px; color: var(--accent); white-space: nowrap; }
+.project-id { margin: 10px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.project-id code { color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: inherit; }
 .difficulty-selector { padding: 0; margin: 28px 0 24px; border: 0; min-width: 0; }
 .difficulty-selector legend { margin-bottom: 12px; }
 .difficulty-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

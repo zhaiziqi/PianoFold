@@ -1,8 +1,8 @@
 # Local workspace acceptance
 
-This checklist validates the local PianoFold journey without changing project
-data. It applies to a completed project created by the API in the current
-working tree.
+This checklist validates the local PianoFold journey. Uploading audio creates
+a new project and its generated artifacts in the current working tree; the
+metrics command later reads that completed project without modifying it.
 
 ## Prerequisites
 

@@ -113,6 +113,14 @@ describe("local workspace", () => {
     expect(getProject).toHaveBeenCalledOnce();
   });
 
+  it("shows the completed project ID for the local metrics command", async () => {
+    vi.mocked(getProject).mockResolvedValue(done);
+    render(<Home />);
+    await choose();
+
+    expect(screen.getByText(PROJECT_ID)).toBeVisible();
+  });
+
   it("supports keyboard focus on the file picker and arrow-key difficulty selection", async () => {
     vi.useRealTimers();
     const user = userEvent.setup();

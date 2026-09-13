@@ -103,6 +103,7 @@ export default function Home() {
       {project?.status === "done" && (
         <section className="arrangement" aria-labelledby="arrangement-heading">
           <div className="section-heading"><h2 id="arrangement-heading">Your piano arrangement</h2><span className="ready-label">Ready to play</span></div>
+          <p className="project-id">Project ID <code>{project.project_id}</code></p>
           <DifficultySelector value={difficulty} onChange={setDifficulty} />
           <DownloadActions projectId={project.project_id} difficulty={difficulty} />
           <ScoreViewer projectId={project.project_id} difficulty={difficulty} />
