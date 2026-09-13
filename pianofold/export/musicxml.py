@@ -1,0 +1,56 @@
+"""MusicXML export for deterministic two-hand piano arrangements."""
+
+from math import isfinite
+from pathlib import Path
+
+from music21 import clef, layout, note, stream, tempo
+
+from pianofold.symbolic.models import PianoArrangement
+
+
+def arrangement_to_musicxml(
+    arrangement: PianoArrangement, output_path: Path, bpm: float = 120.0
+) -> Path:
+    """Write a two-staff piano MusicXML score preserving note timing."""
+    path = _validate_bpm_and_parent(bpm, output_path)
+    score = stream.Score()
+    right = stream.PartStaff()
+    right.partName = "Right Hand"
+    left = stream.PartStaff()
+    left.partName = "Left Hand"
+    right.insert(0, clef.TrebleClef())
+    left.insert(0, clef.BassClef())
+
+    for piano_note in arrangement.notes:
+        part = right if piano_note.hand == "right" else left
+        exported = note.Note(piano_note.pitch)
+        exported.offset = _seconds_to_quarter_length(piano_note.start, bpm)
+        exported.duration.quarterLength = _seconds_to_quarter_length(
+            piano_note.end - piano_note.start, bpm
+        )
+        part.insert(exported.offset, exported)
+
+    score.insert(0, tempo.MetronomeMark(number=bpm))
+    score.insert(0, right)
+    score.insert(0, left)
+    score.insert(
+        0,
+        layout.StaffGroup(
+            [right, left], name="Piano", abbreviation="Pno.", symbol="brace", barTogether=True
+        ),
+    )
+    score.write("musicxml", fp=path)
+    return path
+
+
+def _validate_bpm_and_parent(bpm: float, output_path: Path) -> Path:
+    if isinstance(bpm, bool) or not isinstance(bpm, (int, float)) or not isfinite(bpm) or bpm <= 0:
+        raise ValueError("bpm must be finite and positive")
+    path = Path(output_path)
+    if not path.parent.is_dir():
+        raise ValueError("output parent directory must exist")
+    return path
+
+
+def _seconds_to_quarter_length(seconds: float, bpm: float) -> float:
+    return seconds * bpm / 60
