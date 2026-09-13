@@ -1,83 +1,113 @@
 # PianoFold
 
-Local AI Piano Arranger.
+> Where songs unfold into piano.
 
-## Local workspace
+**PianoFold** is a local AI workspace that turns an audio recording into
+playable piano arrangements. Bring in a song, then receive three versions of
+the arrangement—Simple, Standard, and Rich—along with printable sheet music,
+MIDI, and in-browser playback.
 
-PianoFold's local workspace accepts one MP3, WAV, M4A, or FLAC recording,
-processes it on this machine, and produces Simple, Standard, and Rich piano
-arrangements. Keep the API and web app running in separate terminals from the
-repository root:
+Your audio is processed on your own machine. PianoFold is built for the
+moment when a recording becomes something you can put beneath your hands.
+
+## What it does
+
+- Accepts **MP3, WAV, M4A, and FLAC** recordings.
+- Transcribes audio locally with MuScriptor-small on Apple Silicon.
+- Creates three playable piano arrangements for different levels of comfort.
+- Displays MusicXML sheet music in the browser.
+- Plays the original recording and the generated piano MIDI independently.
+- Exports MIDI and MusicXML for every arrangement.
+- Keeps a project progress record and provides a deterministic arrangement
+  complexity and fidelity report.
+
+## Requirements
+
+- macOS on Apple Silicon with **MPS** available.
+- Python **3.12** and [uv](https://docs.astral.sh/uv/).
+- Node.js and npm.
+- A Hugging Face account with access to the
+  [MuScriptor-small model](https://huggingface.co/MuScriptor/muscriptor-small).
+
+PianoFold deliberately does not fall back to CPU transcription. If MPS is not
+available, it will explain the problem instead of silently running much more
+slowly.
+
+## Quick start
+
+Clone the project and install its two local parts:
 
 ```bash
-uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
+git clone https://github.com/zhaiziqi/PianoFold.git
+cd PianoFold
+uv sync
+cd apps/web && npm ci && cd ../..
 ```
 
-```bash
-cd apps/web && npm run dev -- --hostname 127.0.0.1 --port 3000
-```
-
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000), choose a supported short
-audio file, and leave the page open while the local transcription and
-arrangement job completes. The page shows the persisted stages and progress,
-then offers all three difficulty versions, their MusicXML scores, independent
-original-audio and piano-preview controls, and MIDI/MusicXML downloads for the
-currently selected version.
-
-For a completed project's deterministic complexity and fidelity report, copy
-the project ID shown in the workspace and run:
-
-```bash
-uv run python scripts/evaluate_project.py <project_id>
-```
-
-The command reads the saved `score_ir.json` and prints a Simple/Standard/Rich
-comparison table; it does not transcribe audio or modify any project files.
-
-See [the local acceptance checklist](docs/acceptance/local-workspace.md) for
-the complete upload, processing, score, playback, download, and metrics
-workflow.
-
-## Development
-
-Run the full API checks with `uv run pytest -q`. Run the web checks with
-`cd apps/web && npm test -- --run && npm run build && npm run lint`.
-
-## MuScriptor smoke transcription
-
-On an Apple Silicon Mac with MPS available, accept the MuScriptor-small model
-license on Hugging Face and authenticate once:
+Accept the MuScriptor-small model terms on Hugging Face, then sign in once:
 
 ```bash
 uvx hf auth login
 ```
 
-Then run a deliberate real-audio smoke check (a 15–30 second WAV is a useful
-starting point):
+Start the API in one terminal:
 
 ```bash
-uv run python scripts/smoke_transcribe.py /absolute/path/song.wav
+uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-It uses only MuScriptor-small on `mps` with `float16`, writing both
-`data/smoke/transcription.mid` and the direct-event-derived
-`data/smoke/score_ir.json`. It prints duration plus a transcription-call total
-and RTF; those measures may include lazy model loading, so they are not
-presented as pure inference timing. It intentionally fails when MPS is
-unavailable rather than falling back to CPU.
-
-## Baseline piano arrangement
-
-Inspect the transcription score, then create the deterministic two-hand
-baseline MIDI with:
+Start the workspace in another:
 
 ```bash
-uv run python scripts/inspect_score.py data/smoke/score_ir.json
+cd apps/web
+npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000), choose a song, and keep
+the page open while the arrangement is prepared. On this machine, a three-and-
+a-half-minute MP3 has taken about two minutes from upload to completed exports.
+The first run may take longer while the model loads.
+
+## Your workspace
+
+Once processing finishes, choose **Simple**, **Standard**, or **Rich** to:
+
+1. Read the generated score directly in the browser.
+2. Listen to the original recording or the piano MIDI preview.
+3. Download the selected arrangement as MIDI or MusicXML.
+
+The project ID displayed in the workspace can be used to inspect the saved
+arrangement metrics:
 
 ```bash
-uv run python scripts/smoke_arrange.py data/smoke/score_ir.json data/smoke/baseline.mid --bpm 120
+uv run python scripts/evaluate_project.py <project_id>
 ```
 
-The command quantizes the score, omits `drum`/`drums` instruments, and writes
-a type-1 MIDI with `Right Hand` and `Left Hand` General MIDI piano tracks.
+This reads the existing project data and prints a comparison table; it does not
+run a new transcription or change any project files.
+
+## Development
+
+Run the API checks:
+
+```bash
+uv run pytest -q
+```
+
+Run the web checks:
+
+```bash
+cd apps/web
+npm test -- --run
+npm run build
+npm run lint
+```
+
+## Notes on local data
+
+Uploaded recordings and generated projects are stored only in the local
+`data/` directory. They are ignored by Git so a personal recording, MIDI file,
+or score cannot be accidentally included in a commit.
+
+For a complete manual test flow, see the
+[local workspace acceptance checklist](docs/acceptance/local-workspace.md).
