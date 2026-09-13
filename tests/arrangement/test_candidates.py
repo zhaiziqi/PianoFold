@@ -102,6 +102,20 @@ def test_empty_slice_has_one_empty_frozen_voicing() -> None:
         candidates[0].left = (60,)  # type: ignore[misc]
 
 
+def test_empty_source_ids_are_filtered_before_candidate_generation() -> None:
+    """Passing a blank source ID onward makes otherwise valid candidates unusable."""
+    invalid = Note("", 60, 0.0, 1.0, "piano")
+    valid = Note("valid", 64, 0.0, 1.0, "piano")
+
+    mixed = generate_voicing_candidates((invalid, valid), {"": 1.0, "valid": 0.5}, RICH)
+    blank_only = generate_voicing_candidates((invalid,), {"": 1.0}, RICH)
+
+    assert mixed
+    assert all(60 not in candidate.left + candidate.right for candidate in mixed)
+    assert all(candidate.source_note_ids == ("valid",) for candidate in mixed)
+    assert blank_only == [Voicing((), (), ())]
+
+
 def test_candidate_ordering_is_repeatable() -> None:
     """Nondeterministic enumeration would make later arrangement selection unstable."""
     notes, salience = _onset_slice()

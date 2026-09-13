@@ -21,15 +21,16 @@ def generate_voicing_candidates(
     notes: Sequence[Note], salience: Mapping[str, float], profile: DifficultyProfile
 ) -> list[Voicing]:
     """Return at most 32 playable hand allocations, in canonical order."""
-    if not notes:
+    valid_notes = tuple(note for note in notes if note.id)
+    if not valid_notes:
         return [Voicing((), (), ())]
 
-    ranked = sorted(notes, key=lambda note: (-salience[note.id], note.pitch, note.id))
+    ranked = sorted(valid_notes, key=lambda note: (-salience[note.id], note.pitch, note.id))
     retained = list(ranked[:8])
     retained_ids = {note.id for note in retained}
     for outer in (
-        min(notes, key=lambda note: (note.pitch, note.id)),
-        max(notes, key=lambda note: (note.pitch, note.id)),
+        min(valid_notes, key=lambda note: (note.pitch, note.id)),
+        max(valid_notes, key=lambda note: (note.pitch, note.id)),
     ):
         if outer.id not in retained_ids:
             retained.append(outer)
