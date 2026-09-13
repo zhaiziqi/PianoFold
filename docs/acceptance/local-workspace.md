@@ -75,7 +75,7 @@ native-config-loader notice.
   on branch `codex/local-workspace-ui`.
 - Automated command: `uv run pytest -q && (cd apps/web && npm test -- --run &&
   npm run build && npm run lint) && git diff --check`.
-- Result: 221 Python tests passed; 56 frontend tests passed; the Next.js build
+- Result: 221 Python tests passed; 57 frontend tests passed; the Next.js build
   completed; lint reported 0 errors and the two known warnings above;
   `git diff --check` passed.
 - Endpoint arrangement: ports 8000 and 3000 were already occupied by
